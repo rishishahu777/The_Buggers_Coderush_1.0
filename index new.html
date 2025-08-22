@@ -3,132 +3,197 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GeoWeather</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" 
-          integrity="sha512-Evv84Mr4kqVGRNSgIGL/F/aIDqQb7xQ2vcrdIwxfjThSH8CSR7PBEakCr51Ck+w+/U6swU2Im1vVX0SVk9ABhg==" 
-          crossorigin="anonymous" referrerpolicy="no-referrer" />
-    <link rel="stylesheet" href="style.css">
+    <title>Environmental Monitoring Dashboard</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        .header { text-align: center; color: white; margin-bottom: 30px; }
+        .header h1 { font-size: 3em; margin-bottom: 10px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
+        .dashboard { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+        .map-container { background: white; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); overflow: hidden; }
+        #map { height: 500px; width: 100%; }
+        .controls { background: white; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); padding: 25px; }
+        .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-top: 20px; }
+        .metric-card { background: white; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); padding: 25px; text-align: center; transition: transform 0.3s ease; }
+        .metric-card:hover { transform: translateY(-5px); }
+        .metric-card h3 { font-size: 1.5em; margin-bottom: 10px; color: #333; }
+        .metric-card p { font-size: 2em; color: #764ba2; }
+        select { width: 100%; padding: 10px; margin-bottom: 20px; border-radius: 5px; border: 1px solid #ddd; font-size: 1em; }
+        button { background: #667eea; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 1em; transition: background 0.3s ease; }
+        button:hover { background: #764ba2; }
+        .loader { display: none; text-align: center; padding: 20px; }
+        .loader i { font-size: 1.5em; color: #667eea; }
+        @media (max-width: 768px) { 
+            .dashboard { grid-template-columns: 1fr; }
+            .metric-card { padding: 15px; }
+        }
+    </style>
 </head>
 <body>
-    
-    <header>
-
-        
-        <div class="navbar">
-            <div class="nav-logo border">
-                <div class="logo"></div>
+    <div class="container">
+        <div class="header">
+            <h1>Environmental Monitoring Dashboard</h1>
+            <p>Real-time air and water pollution monitoring with crop burning detection</p>
+        </div>
+        <div class="dashboard">
+            <div class="map-container">
+                <div id="map"></div>
             </div>
-            <div class="nav-address border">
-                <button>Weather for</button>
-                <div class="add-icon">
-                    <i class="fa-solid fa-location-dot"></i>
-                    <p class="add-second">Your City</p>
-                </div>
-            </div>
-            <div class="nav-search">
-                <select class="search-select">
-                    <option>City</option>
-                    <option>Country</option>
+            <div class="controls">
+                <h2>Select Location</h2>
+                <select id="location-select">
+                    <option value="">Select a location</option>
                 </select>
-                <input placeholder="Search location..." class="search-input">
-                <div class="search-icon">
-                    <i class="fa-solid fa-magnifying-glass"></i>
+                <button onclick="fetchData()">Load Data</button>
+                <div class="loader" id="loader">
+                    <i class="fas fa-spinner fa-spin"></i> Loading...
                 </div>
             </div>
-            <div class="sign-in border">
-                <p class="sign-in1">Hello, Guest</p>
-                <p class="sign-in2">Sign In</p>
-            </div>
-            <div class="delivery border">
-                <p class="return">Today</p>
-                <p class="order">Forecast</p>
-            </div>
-            <div class="cart border">
-                <div class="cart-icon"><i class="fa-solid fa-cloud-sun"></i></div>
-                <p class="cart-font">Weather</p>
-            </div>
         </div>
-
-        
-        
-    </header>
-
-    
-    <div class="hero">
-        <div class="hero-img">
-            <div class="hero-text">
-                <p>Get real-time weather updates, forecasts, and alerts for your location. 
-                <a href="#">Know more</a></p>
-            </div>
+        <div class="metrics-grid" id="metrics">
+            <!-- Metrics will be populated dynamically -->
         </div>
     </div>
 
-    
-    <div class="content-sec">
-        <div class="box">
-            <h2>Today's Weather</h2>
-            <div class="box-image" style="background-image: url('weather-today.jpg');"></div>
-            <p>Check the live temperature and conditions.</p>
-        </div>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script>
+        // Initialize Leaflet map
+        const map = L.map('map').setView([0, 0], 2);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
 
-        <div class="box">
-            <h2>7-Day Forecast</h2>
-            <div class="box-image" style="background-image: url('forecast.jpg');"></div>
-            <p>Plan your week with accurate predictions.</p>
-        </div>
+        let marker = null;
 
-        <div class="box">
-            <h2>Weather Radar</h2>
-            <div class="box-image" style="background-image: url('radar.jpg');"></div>
-            <p>Track storms, rainfall, and wind in real time.</p>
-        </div>
+        // Fetch sample locations
+        async function loadLocations() {
+            try {
+                const response = await fetch('/api/locations');
+                const locations = await response.json();
+                const select = document.getElementById('location-select');
+                locations.forEach(loc => {
+                    const option = document.createElement('option');
+                    option.value = `${loc.lat},${loc.lon}`;
+                    option.textContent = loc.name;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading locations:', error);
+            }
+        }
 
-        <div class="box">
-            <h2>Air Quality Index</h2>
-            <div class="box-image" style="background-image: url();"></div>
-            <p>Stay safe with pollution and AQI alerts.</p>
-        </div>
+        // Fetch environmental data
+        async function fetchData() {
+            const select = document.getElementById('location-select');
+            const [lat, lon] = select.value.split(',');
+            if (!lat || !lon) {
+                alert('Please select a location');
+                return;
+            }
 
-        <div class="box">
-            <h2>UV Index</h2>
-            <div class="box-image" style="background-image: url();"></div>
-            <p>Check UV exposure levels for today.</p>
-        </div>
+            document.getElementById('loader').style.display = 'block';
+            document.getElementById('metrics').innerHTML = '';
 
-        <div class="box">
-            <h2>Satellite Maps</h2>
-            <div class="box-image" style="background-image: url('satellite.jpg');"></div>
-            <p>Visualize cloud coverage globally.</p>
-        </div>
+            try {
+                const response = await fetch(`/api/pollution/${lat}/${lon}`);
+                const data = await response.json();
+                document.getElementById('loader').style.display = 'none';
 
-     <div class="box">
-    <h2>Weather Alerts</h2>
-    <div class="box-image">
-        <a href="">Visit Example</a>
+                if (data.status === 'success') {
+                    updateMap(lat, lon);
+                    displayMetrics(data);
+                } else {
+                    alert('Error fetching data');
+                }
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                document.getElementById('loader').style.display = 'none';
+                alert('Error fetching data');
+            }
+        }
 
-            <img src="string.png" 
-                 alt="Pollution Map" 
-                 style="width:100%; height:280px; border-radius:10px; object-fit:cover;">
-        
-    </div>
-    <p>Click the image to view the pollution heatmap.</p>
-</div>
+        // Update map with marker
+        function updateMap(lat, lon) {
+            if (marker) {
+                map.removeLayer(marker);
+            }
+            map.setView([lat, lon], 10);
+            marker = L.marker([lat, lon]).addTo(map);
+        }
 
-      
-        </div>
+        // Display metrics
+        function displayMetrics(data) {
+            const metricsGrid = document.getElementById('metrics');
+            const metrics = [
+                {
+                    title: 'Air Quality Index (AQI)',
+                    value: data.air_pollution?.list?.[0]?.main?.aqi || 'N/A',
+                    color: getAQIColor(data.air_pollution?.list?.[0]?.main?.aqi)
+                },
+                {
+                    title: 'Estimated Water Quality Index',
+                    value: data.water_pollution?.estimated_wqi || 'N/A'
+                },
+                {
+                    title: 'Crop Burning Probability',
+                    value: `${data.crop_burning?.burning_probability || 0}%`
+                },
+                {
+                    title: 'PM2.5 Level',
+                    value: `${data.crop_burning?.pm25_level || 0} µg/m³`
+                },
+                {
+                    title: 'Temperature',
+                    value: `${data.weather?.main?.temp || 'N/A'} °C`
+                },
+                {
+                    title: 'Humidity',
+                    value: `${data.weather?.main?.humidity || 'N/A'}%`
+                },
+                {
+                    title: 'Pollution Trend',
+                    value: data.trend_analysis?.trend || 'N/A'
+                },
+                {
+                    title: 'Average AQI (7 days)',
+                    value: data.trend_analysis?.avg_aqi?.toFixed(1) || 'N/A'
+                }
+            ];
 
-        <div class="box">
-            <h2>Travel Weather</h2>
-        </div> <div class="box-image" style="background-image: url('travel.jpg');"></div>
-            <p>Plan safe trips with detailed weather data.</p>
-        </div>
-    </div>
-    
+            metrics.forEach(metric => {
+                const card = document.createElement('div');
+                card.className = 'metric-card';
+                card.innerHTML = `
+                    <h3>${metric.title}</h3>
+                    <p style="${metric.color ? `color: ${metric.color};` : ''}">${metric.value}</p>
+                `;
+                metricsGrid.appendChild(card);
+            });
+        }
 
-    
-    <div class="sign-info">
-        <h2>Sign in to personalize your weather updates</h2>
-        <div class="box-sign-in"></div>
-    </div>
+        // Get AQI color based on value
+        function getAQIColor(aqi) {
+            if (!aqi) return '#333';
+            const colors = {
+                1: '#00e400', // Good
+                2: '#ffff00', // Fair
+                3: '#ff7e00', // Moderate
+                4: '#ff0000', // Poor
+                5: '#7e0023'  // Very Poor
+            };
+            return colors[aqi] || '#333';
+        }
+
+        // Load locations on page load
+        window.onload = loadLocations;
+    </script>
 </body>
 </html>
