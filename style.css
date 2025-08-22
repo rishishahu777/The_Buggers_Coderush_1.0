@@ -1,0 +1,30 @@
+*{
+   margin: 0;
+   font-family: Arial;
+   border: border-box;
+}
+.navbar{
+    background-color: #0f1111;
+    height: 60px;
+    color:white;
+    display:flex;
+    align-items: center;
+    justify-content:space-evenly;}
+
+    .guide{
+     width:50px;
+    text-align: center;
+    font-size: 1rem;
+    }
+    .border{
+        border : 2px solid transparent;
+    }
+    .border:hover{
+        border: 2px solid white;}
+
+    .map_icon{
+        display :flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+    }
